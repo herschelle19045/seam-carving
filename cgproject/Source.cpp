@@ -82,7 +82,7 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
     double Min = 1e9;
     int j = -1; // Min Index ie index at which Min val occurs
 
-    for (int i = 0; i < cMap.row(0).cols; ++i) {
+    for (int i = 1; i < cMap.row(0).cols; ++i) {
         if (Set.find(i) != Set.end()) {
             continue;
         }
@@ -95,7 +95,7 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
     Set.insert(j);
     optPath.push_back(j);
 
-    for (int i = 0; i < size.height; i++) {
+    for (int i = 1; i < size.height; i++) {
         double a = getEnergy(cMap, i, j - 1, size.width),
             b = getEnergy(cMap, i, j, size.width),
             c = getEnergy(cMap, i, j + 1, size.width);
