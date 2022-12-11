@@ -7,8 +7,6 @@
 using namespace cv;
 using namespace std;
 
-set<int> Set;
-
 double getEnergy(Mat mat, int i, int j, int size) {
     if (j < 0) {
         return mat.at<double>(i, 0);
@@ -19,9 +17,9 @@ double getEnergy(Mat mat, int i, int j, int size) {
     return mat.at<double>(i, j);
 }
 
-Mat generateEnergyMap(Mat& img) {
+Mat generateEnergyMap(Mat &img) {
 
-    // Gaussian Blue to reduce noise
+    // Gaussian Blur to reduce noise
     Mat blurImage;
     GaussianBlur(img, blurImage, Size(3, 3), 0, 0, BORDER_DEFAULT);
 
@@ -67,9 +65,9 @@ Mat generateCumulativeMap(Mat& eImg, Size_<int> size) {
         for (int j = 0; j < eImg.cols; j++) {
             cMap.at<double>(i, j) = eImg.at<double>(i, j) +
                 min({
-                    getEnergy(cMap, i - 1, j - 1, size.width),
-                    getEnergy(cMap, i - 1, j, size.width),
-                    getEnergy(cMap, i - 1, j + 1, size.width)
+                            getEnergy(cMap, i - 1, j - 1, size.width),
+                            getEnergy(cMap, i - 1, j, size.width),
+                            getEnergy(cMap, i - 1, j + 1, size.width)
                     });
         }
     }
@@ -78,24 +76,20 @@ Mat generateCumulativeMap(Mat& eImg, Size_<int> size) {
 }
 
 vector<int> findSeam(Mat& cMap, Size_<int> size) {
-    vector<int> optPath;
+    vector<int> optPath(size.height);
     double Min = 1e9;
     int j = -1; // Min Index ie index at which Min val occurs
 
-    for (int i = 1; i < cMap.row(0).cols; ++i) {
-        if (Set.find(i) != Set.end()) {
-            continue;
-        }
-        double val = cMap.at<double>(0, i);
+    for (int i = 0; i < size.width; ++i) {
+        double val = cMap.at<double>(size.height - 1, i);
         if (val < Min) {
             Min = val;
             j = i;
         }
     }
-    Set.insert(j);
-    optPath.push_back(j);
+    optPath[size.height - 1] = j;
 
-    for (int i = 1; i < size.height; i++) {
+    for (int i = size.height - 2; i >= 0; i--) {
         double a = getEnergy(cMap, i, j - 1, size.width),
             b = getEnergy(cMap, i, j, size.width),
             c = getEnergy(cMap, i, j + 1, size.width);
@@ -108,23 +102,25 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
         }
         if (j < 0) j = 0;
         else if (j >= size.width) j = size.width - 1;
-        optPath.push_back(j);
+
+        optPath[i] = j;
     }
 
     return optPath;
 }
 
-void generateSeams(Mat& cMap, Mat& eMap, Size_<int> size) {
-    for (int j = 0; j < 50; ++j) {
-        vector<int> path = findSeam(cMap, size);
-        for (int i = 0; i < eMap.rows; i++) {
-            eMap.at<double>(i, path[i]) = 1;
+void reduce(Mat& img, vector<int> path, Size_<int> size) {
+    for (int i = 0; i < size.height; i++) {
+        int k = 0;
+        for (int j = 0; j < size.width; ++j) {
+            if (j == path[i]) continue;
+            img.at<Vec3b>(i, k++) = img.at<Vec3b>(i, j);
         }
-        namedWindow("Seam on Energy Map", WINDOW_AUTOSIZE);
-        imshow("Seam on Energy Map", eMap);
-
-        waitKey(0);
     }
+    img = img.colRange(0, size.width - 1);
+
+    namedWindow("Reduced Image", WINDOW_AUTOSIZE);
+    imshow("Reduced Image", img);
 }
 
 int main() {
@@ -141,10 +137,24 @@ int main() {
     namedWindow("Original Image", WINDOW_AUTOSIZE);
     imshow("Original Image", image);
 
+    for (int i = 0; i < 150; i++) {
+        Mat energyMap = generateEnergyMap(image);
+        Mat cumulativeMap = generateCumulativeMap(energyMap, imgSize);
+        vector<int> path = findSeam(cumulativeMap, imgSize);
 
-    Mat energyMap = generateEnergyMap(image);
-    Mat cumulativeMap = generateCumulativeMap(energyMap, imgSize);
-    generateSeams(cumulativeMap, energyMap, imgSize);
+        for (int j = 0; j < energyMap.rows; j++) {
+            energyMap.at<double>(j, path[j]) = 1;
+        }
+        namedWindow("Seam Path", WINDOW_AUTOSIZE);
+        imshow("Seam Path", energyMap);
+
+        waitKey(50);
+        reduce(image, path, imgSize);
+        imgSize.width--;
+    }
+
+    waitKey(0);
+    imwrite("Result", image);
 
 
     return 0;
