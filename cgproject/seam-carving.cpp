@@ -17,16 +17,15 @@ double getEnergy(Mat mat, int i, int j, int size) {
     return mat.at<double>(i, j);
 }
 
-Mat generateEnergyMap(Mat &img) {
-
-    // Gaussian Blur to reduce noise
+// https://docs.opencv.org/3.4/d2/d2c/tutorial_sobel_derivatives.html
+Mat generateEnergyMap(Mat& img) {
+    // Gaussian Blur to reduceWidth noise
     Mat blurImage;
     GaussianBlur(img, blurImage, Size(3, 3), 0, 0, BORDER_DEFAULT);
 
     // Grayscale
     Mat grayImage;
     cvtColor(blurImage, grayImage, COLOR_BGR2GRAY);
-
 
     // Sobel operator to compute the gradient of the image
     Mat xGradient, yGradient;
@@ -46,7 +45,6 @@ Mat generateEnergyMap(Mat &img) {
     Mat energyImage;
     gradient.convertTo(energyImage, CV_64F, 1.0 / 255.0);
 
-    namedWindow("Energy Map", WINDOW_AUTOSIZE);
     imshow("Energy Map", energyImage);
 
     return energyImage;
@@ -65,12 +63,20 @@ Mat generateCumulativeMap(Mat& eImg, Size_<int> size) {
         for (int j = 0; j < eImg.cols; j++) {
             cMap.at<double>(i, j) = eImg.at<double>(i, j) +
                 min({
-                            getEnergy(cMap, i - 1, j - 1, size.width),
-                            getEnergy(cMap, i - 1, j, size.width),
-                            getEnergy(cMap, i - 1, j + 1, size.width)
+                    getEnergy(cMap, i - 1, j - 1, size.width),
+                    getEnergy(cMap, i - 1, j, size.width),
+                    getEnergy(cMap, i - 1, j + 1, size.width)
                     });
         }
     }
+
+    Mat plot;
+    double Cmin, Cmax;
+    minMaxLoc(cMap, &Cmin, &Cmax);
+    float scale = 255.0 / (Cmax - Cmin);
+    cMap.convertTo(plot, CV_8UC1, scale);
+    applyColorMap(plot, plot, cv::COLORMAP_JET);
+    imshow("Cumulative Energy Map", plot);
 
     return cMap;
 }
@@ -109,7 +115,7 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
     return optPath;
 }
 
-void reduce(Mat& img, vector<int> path, Size_<int> size) {
+void reduceWidth(Mat& img, vector<int> path, Size_<int> size) {
     for (int i = 0; i < size.height; i++) {
         int k = 0;
         for (int j = 0; j < size.width; ++j) {
@@ -119,12 +125,11 @@ void reduce(Mat& img, vector<int> path, Size_<int> size) {
     }
     img = img.colRange(0, size.width - 1);
 
-    namedWindow("Reduced Image", WINDOW_AUTOSIZE);
     imshow("Reduced Image", img);
 }
 
 int main() {
-    string filename = "seam.jpg";
+    string filename = "original.jpg";
 
     Mat image = imread(filename);
     if (image.empty()) {
@@ -134,7 +139,6 @@ int main() {
 
     Size_<int> imgSize = Size(image.cols, image.rows);
 
-    namedWindow("Original Image", WINDOW_AUTOSIZE);
     imshow("Original Image", image);
 
     for (int i = 0; i < 150; i++) {
@@ -145,17 +149,12 @@ int main() {
         for (int j = 0; j < energyMap.rows; j++) {
             energyMap.at<double>(j, path[j]) = 1;
         }
-        namedWindow("Seam Path", WINDOW_AUTOSIZE);
         imshow("Seam Path", energyMap);
 
         waitKey(50);
-        reduce(image, path, imgSize);
+        reduceWidth(image, path, imgSize);
         imgSize.width--;
     }
-
     waitKey(0);
-    imwrite("Result", image);
-
-
     return 0;
 }
