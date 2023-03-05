@@ -7,6 +7,7 @@
 using namespace cv;
 using namespace std;
 
+// Function to get energy values at pixel i,j
 double getEnergy(Mat mat, int i, int j, int size) {
     if (j < 0) {
         return mat.at<double>(i, 0);
@@ -50,44 +51,37 @@ Mat generateEnergyMap(Mat& img) {
     return energyImage;
 }
 
-Mat generateCumulativeMap(Mat& eImg, Size_<int> size) {
-    Mat cMap = Mat(size, CV_64F);
+Mat generateCumulativeMap(Mat& energyImage, Size_<int> size) {
+    Mat cumulativeEnergyMap = Mat(size, CV_64F);
 
-    // Base Condition
+    // Base Condition (Copying first row of image to cumulative map)
     for (int i = 0; i < size.width; ++i) {
-        cMap.at<double>(0, i) = eImg.at<double>(0, i);
+        cumulativeEnergyMap.at<double>(0, i) = energyImage.at<double>(0, i);
     }
 
     // Dynamic Programming
-    for (int i = 1; i < eImg.rows; i++) {
-        for (int j = 0; j < eImg.cols; j++) {
-            cMap.at<double>(i, j) = eImg.at<double>(i, j) +
-                min({
-                    getEnergy(cMap, i - 1, j - 1, size.width),
-                    getEnergy(cMap, i - 1, j, size.width),
-                    getEnergy(cMap, i - 1, j + 1, size.width)
-                    });
+    for (int i = 1; i < energyImage.rows; i++) {
+        for (int j = 0; j < energyImage.cols; j++) {
+            cumulativeEnergyMap.at<double>(i, j) = energyImage.at<double>(i, j) +
+                                                   min({
+                                                getEnergy(cumulativeEnergyMap, i - 1, j - 1, size.width),
+                                                getEnergy(cumulativeEnergyMap, i - 1, j, size.width),
+                                                getEnergy(cumulativeEnergyMap, i - 1, j + 1, size.width)
+                                        });
         }
     }
 
-    Mat plot;
-    double Cmin, Cmax;
-    minMaxLoc(cMap, &Cmin, &Cmax);
-    float scale = 255.0 / (Cmax - Cmin);
-    cMap.convertTo(plot, CV_8UC1, scale);
-    applyColorMap(plot, plot, cv::COLORMAP_JET);
-    imshow("Cumulative Energy Map", plot);
-
-    return cMap;
+    return cumulativeEnergyMap;
 }
 
-vector<int> findSeam(Mat& cMap, Size_<int> size) {
+vector<int> findSeam(Mat& cumulativeEnergyMap, Size_<int> size) {
     vector<int> optPath(size.height);
     double Min = 1e9;
     int j = -1; // Min Index ie index at which Min val occurs
 
+    // Finding index of min energy at the last row of image
     for (int i = 0; i < size.width; ++i) {
-        double val = cMap.at<double>(size.height - 1, i);
+        double val = cumulativeEnergyMap.at<double>(size.height - 1, i);
         if (val < Min) {
             Min = val;
             j = i;
@@ -95,11 +89,13 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
     }
     optPath[size.height - 1] = j;
 
+    // Generating seam (path) starting from the bottom of the image
     for (int i = size.height - 2; i >= 0; i--) {
-        double a = getEnergy(cMap, i, j - 1, size.width),
-            b = getEnergy(cMap, i, j, size.width),
-            c = getEnergy(cMap, i, j + 1, size.width);
+        double a = getEnergy(cumulativeEnergyMap, i, j - 1, size.width),
+                b = getEnergy(cumulativeEnergyMap, i, j, size.width),
+                c = getEnergy(cumulativeEnergyMap, i, j + 1, size.width);
 
+        // From i_th row to i-1_th row we need to select from min energy(i, j-1), energy(i, j), energy(i, j+1)
         if (min({ a, b, c }) == c) {
             j++;
         }
@@ -115,17 +111,20 @@ vector<int> findSeam(Mat& cMap, Size_<int> size) {
     return optPath;
 }
 
-void reduceWidth(Mat& img, vector<int> path, Size_<int> size) {
+void reduceWidth(Mat& image, vector<int> path, Size_<int> size) {
+    // Initially copying image(i, j) = image(i, j)
     for (int i = 0; i < size.height; i++) {
         int k = 0;
         for (int j = 0; j < size.width; ++j) {
             if (j == path[i]) continue;
-            img.at<Vec3b>(i, k++) = img.at<Vec3b>(i, j);
+            // Shifting all pixels by one pixel in a row
+            // Once pixel to remove has been crossed then copy image(i, j-1) = image(i, j)
+            image.at<Vec3b>(i, k++) = image.at<Vec3b>(i, j); 
         }
     }
-    img = img.colRange(0, size.width - 1);
+    image = image.colRange(0, size.width - 1);
 
-    imshow("Reduced Image", img);
+    imshow("Reduced Image", image);
 }
 
 int main() {
@@ -143,15 +142,15 @@ int main() {
 
     for (int i = 0; i < 150; i++) {
         Mat energyMap = generateEnergyMap(image);
-        Mat cumulativeMap = generateCumulativeMap(energyMap, imgSize);
-        vector<int> path = findSeam(cumulativeMap, imgSize);
+        Mat cumulativeEnergyMap = generateCumulativeMap(energyMap, imgSize);
+        vector<int> path = findSeam(cumulativeEnergyMap, imgSize);
 
         for (int j = 0; j < energyMap.rows; j++) {
             energyMap.at<double>(j, path[j]) = 1;
         }
         imshow("Seam Path", energyMap);
 
-        waitKey(50);
+        waitKey(10);
         reduceWidth(image, path, imgSize);
         imgSize.width--;
     }
