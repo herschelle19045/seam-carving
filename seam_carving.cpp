@@ -140,6 +140,7 @@ int main() {
 
     imshow("Original Image", image);
 
+    // Reducing the width by 150 units
     for (int i = 0; i < 150; i++) {
         Mat energyMap = generateEnergyMap(image);
         Mat cumulativeEnergyMap = generateCumulativeMap(energyMap, imgSize);
@@ -150,6 +151,7 @@ int main() {
         }
         imshow("Seam Path", energyMap);
 
+        // Adding delay to better visualize the path
         waitKey(10);
         reduceWidth(image, path, imgSize);
         imgSize.width--;
