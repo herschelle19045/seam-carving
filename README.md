@@ -40,12 +40,3 @@ The seam carving algorithm involves the following steps:
 3.  **Seam Removal:** Remove the marked seam to reduce or increase the image size.
 4.  **Iteration:** Repeat steps 2 and 3 until the desired dimensions are reached.
 
-
-
-### Contributions:
-
-Contributions are welcome\! Feel free to fork the repository and submit pull requests with your improvements or new features.
-
-### License:
-
-[Specify the license you're using, e.g., MIT, Apache]
